@@ -3,23 +3,34 @@ import pandas as pd
 from pymongo import MongoClient
 from dotenv import load_dotenv
 import streamlit as st
+import certifi
 
 load_dotenv()
 
 class DataIngestionPipeline:
     def __init__(self, db_name=None, collection_name=None):
         mongo_uri = None
+
+        # Prioritas 1: Ambil dari Streamlit Secrets (Cloud)
         try:
             if "MONGO_URI" in st.secrets:
                 mongo_uri = st.secrets["MONGO_URI"]
+            elif "mongo_uri" in st.secrets:
+                mongo_uri = st.secrets["mongo_uri"]
         except Exception:
             pass
 
+        # Prioritas 2: Ambil dari .env / Environment Variable (Lokal)
         if not mongo_uri:
-            mongo_uri = os.getenv("MONGO_URI", "mongodb://localhost:27017/")
+            mongo_uri = os.getenv("MONGO_URI") or os.getenv("mongo_uri")
+
+        if not mongo_uri:
+            raise ValueError("MONGO_URI tidak ditemukan di Streamlit Secrets maupun file .env!")
 
         self.mongo_uri = mongo_uri
-        self.client = MongoClient(self.mongo_uri)
+        
+        # Inisialisasi koneksi dengan sertifikasi SSL/TLS dari certifi
+        self.client = MongoClient(self.mongo_uri, tlsCAFile=certifi.where())
         
         self.db = self.client[db_name] if db_name else None
         self.collection = self.db[collection_name] if (db_name and collection_name) else None

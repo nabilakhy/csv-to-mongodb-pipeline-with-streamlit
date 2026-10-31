@@ -3,3 +3,5 @@ pandas
 pymongo
 python-dotenv
 openpyxl
+certifi
+dnspython
