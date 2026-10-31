@@ -2,15 +2,20 @@ import os
 import pandas as pd
 from pymongo import MongoClient
 from dotenv import load_dotenv
+from dotenv import load_dotenv
+import streamlit as st
 
 # Load variabel lingkungan dari file .env
 load_dotenv()
 
 class DataIngestionPipeline:
     def __init__(self, db_name=None, collection_name=None):
-        self.mongo_uri = os.getenv("MONGO_URI", "mongodb://localhost:27017/")
+        if "MONGO_URI" in st.secrets:
+            self.mongo_uri = st.secrets["MONGO_URI"]
+        else:
+            self.mongo_uri = os.getenv("MONGO_URI", "mongodb://localhost:27017/")
+            
         self.client = MongoClient(self.mongo_uri)
-        
         self.db = self.client[db_name] if db_name else None
         self.collection = self.db[collection_name] if (db_name and collection_name) else None
 
