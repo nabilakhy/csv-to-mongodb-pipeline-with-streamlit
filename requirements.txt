@@ -1,5 +1,5 @@
 streamlit
 pandas
-openpyxl
 pymongo
-dnspython
+python-dotenv
+openpyxl
