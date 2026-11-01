@@ -12,11 +12,6 @@ except Exception as e:
     st.error(f"Gagal terhubung ke MongoDB: {e}")
     st.stop()
 
-if "success_msg" in st.session_state:
-    st.success(st.session_state["success_msg"])
-    st.toast(st.session_state["success_msg"], icon="✅")
-    del st.session_state["success_msg"]
-
 st.sidebar.header("⚙️ Target MongoDB")
 
 existing_dbs = pipeline_init.get_existing_databases()
@@ -87,12 +82,33 @@ if uploaded_file is not None:
             fill_na=fill_null
         )
 
+        df_transformed = pd.DataFrame(records)
+
         with st.expander("Preview Data Hasil Transformasi"):
-            st.dataframe(pd.DataFrame(records).head(10))
+            st.dataframe(df_transformed.head(10))
             st.caption(f"Total baris setelah difilter: {cleaned_count}")
 
-        st.subheader("3. Ingest ke MongoDB")
+        st.subheader("3. Tipe Data & Skema Kolom")
+        dtypes_df = pd.DataFrame({
+            "Nama Kolom": df_transformed.columns,
+            "Tipe Data": [str(dtype) for dtype in df_transformed.dtypes],
+            "Jumlah Non-Null": df_transformed.notnull().sum().values
+        })
+        st.dataframe(dtypes_df, use_container_width=True)
+
+        st.subheader("4. Ingest ke MongoDB")
         
+        if "success_msg" in st.session_state:
+            st.markdown(
+                f"""
+                <div style="background-color: #d4edda; border-left: 6px solid #28a745; color: #155724; padding: 16px; border-radius: 8px; font-size: 18px; margin-bottom: 20px;">
+                    ✅ <strong>Berhasil!</strong> {st.session_state['success_msg']}
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+            del st.session_state["success_msg"]
+
         if not target_db or not target_col:
             st.warning("Silakan tentukan Nama Database dan Collection terlebih dahulu di sidebar.")
         else:
