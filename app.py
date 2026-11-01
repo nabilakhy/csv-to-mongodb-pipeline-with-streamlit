@@ -12,9 +12,10 @@ except Exception as e:
     st.error(f"Gagal terhubung ke MongoDB: {e}")
     st.stop()
 
-if "toast_msg" in st.session_state:
-    st.success(st.session_state["toast_msg"])
-    del st.session_state["toast_msg"]
+if "success_msg" in st.session_state:
+    st.success(st.session_state["success_msg"])
+    st.toast(st.session_state["success_msg"], icon="✅")
+    del st.session_state["success_msg"]
 
 st.sidebar.header("⚙️ Target MongoDB")
 
@@ -48,7 +49,7 @@ with st.sidebar.expander("🗑️ Hapus Database / Collection"):
         if st.button("Hapus Database Ini", type="secondary"):
             if del_db != "-- Pilih --":
                 if pipeline_init.drop_database(del_db):
-                    st.session_state["toast_msg"] = f"Database '{del_db}' berhasil dihapus!"
+                    st.session_state["success_msg"] = f"Database '{del_db}' berhasil dihapus!"
                     st.rerun()
     
     if target_db and existing_cols:
@@ -56,7 +57,7 @@ with st.sidebar.expander("🗑️ Hapus Database / Collection"):
         if st.button("Hapus Collection Ini", type="secondary"):
             if del_col != "-- Pilih --":
                 if pipeline_init.drop_collection(target_db, del_col):
-                    st.session_state["toast_msg"] = f"Collection '{del_col}' berhasil dihapus!"
+                    st.session_state["success_msg"] = f"Collection '{del_col}' berhasil dihapus!"
                     st.rerun()
 
 st.subheader("1. Unggah Berkas Data")
@@ -100,7 +101,7 @@ if uploaded_file is not None:
                     pipeline_load = DataIngestionPipeline(db_name=target_db, collection_name=target_col)
                     inserted_count = pipeline_load.load(records)
                     
-                    st.session_state["toast_msg"] = f"✅ Success! Berhasil memasukkan {inserted_count} dokumen ke Database '{target_db}' -> Collection '{target_col}'."
+                    st.session_state["success_msg"] = f"Berhasil memasukkan {inserted_count} dokumen ke Database '{target_db}' -> Collection '{target_col}'!"
                     st.rerun()
 
     except Exception as e:
