@@ -9,7 +9,7 @@ st.markdown("Unggah file CSV/Excel untuk diparse, ditransformasi, dan disimpan k
 
 init_pipeline = DataIngestionPipeline()
 
-# --- SIDEBAR ---
+# Sidebar
 st.sidebar.header("Database Configuration")
 
 try:
@@ -19,44 +19,44 @@ except Exception as e:
     existing_dbs = []
 
 db_options = existing_dbs + ["+ Create New Database"]
-selected_db_option = st.sidebar.selectbox("Pilih Database", db_options)
+selected_db_option = st.sidebar.selectbox("Pilih Database", db_options, key="select_db")
 
 if selected_db_option == "+ Create New Database":
-    target_db = st.sidebar.text_input("Nama Database Baru", value="my_new_db")
+    target_db = st.sidebar.text_input("Nama Database Baru", value="my_new_db", key="input_new_db")
 else:
     target_db = selected_db_option
 
 existing_collections = []
-if target_db and selected_db_option != "+ Create New Database":
+if target_db and target_db != "+ Create New Database":
     try:
         existing_collections = init_pipeline.get_existing_collections(target_db)
     except Exception:
         existing_collections = []
 
 coll_options = existing_collections + ["+ Create New Collection"]
-selected_coll_option = st.sidebar.selectbox("Pilih Collection", coll_options)
+selected_coll_option = st.sidebar.selectbox("Pilih Collection", coll_options, key="select_coll")
 
 if selected_coll_option == "+ Create New Collection":
-    target_collection = st.sidebar.text_input("Nama Collection Baru", value="raw_imports")
+    target_collection = st.sidebar.text_input("Nama Collection Baru", value="raw_imports", key="input_new_coll")
 else:
     target_collection = selected_coll_option
 
-if selected_db_option != "+ Create New Database":
+if target_db in existing_dbs:
     st.sidebar.markdown("---")
     st.sidebar.subheader("Danger Zone")
     
-    if selected_coll_option != "+ Create New Collection":
-        if st.sidebar.button(f"Hapus Collection '{target_collection}'"):
+    if selected_coll_option in existing_collections:
+        if st.sidebar.button(f"Hapus Collection '{target_collection}'", type="secondary"):
             if init_pipeline.drop_collection(target_db, target_collection):
                 st.sidebar.success(f"Collection '{target_collection}' berhasil dihapus!")
                 st.rerun()
 
-    if st.sidebar.button(f"Hapus Database '{target_db}'"):
+    if st.sidebar.button(f"Hapus Database '{target_db}'", type="secondary"):
         if init_pipeline.drop_database(target_db):
             st.sidebar.success(f"Database '{target_db}' berhasil dihapus!")
             st.rerun()
 
-# --- MAIN UI ---
+# Main Interface
 uploaded_file = st.file_uploader("Pilih file CSV atau XLSX", type=["csv", "xlsx"])
 
 if uploaded_file is not None:
@@ -110,6 +110,7 @@ if uploaded_file is not None:
             with st.spinner("Mengirim data..."):
                 inserted_count = pipeline.load(records)
                 st.success(f"Berhasil menyimpan {inserted_count} dokumen ke database '{target_db}', collection '{target_collection}'!")
+                st.rerun()
                 
     except Exception as e:
         st.error(f"Terjadi kesalahan: {str(e)}")
