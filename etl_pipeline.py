@@ -57,7 +57,6 @@ class DataIngestionPipeline:
     def extract(self, uploaded_file):
         if uploaded_file.name.endswith('.csv'):
             encodings = ['utf-8', 'latin1', 'cp1252', 'iso-8859-1']
-            
             for enc in encodings:
                 try:
                     uploaded_file.seek(0)

@@ -1,118 +1,107 @@
-import streamlit as st
 import pandas as pd
+import streamlit as st
 from etl_pipeline import DataIngestionPipeline
 
-st.set_page_config(page_title="Data Parser to MongoDB Pipeline", layout="wide")
+st.set_page_config(page_title="MongoDB Data Ingestion Pipeline", layout="wide")
 
-st.title("CSV/Excel Data Ingestion Pipeline")
-st.markdown("Unggah file CSV/Excel untuk diparse, ditransformasi, dan disimpan ke MongoDB.")
-
-init_pipeline = DataIngestionPipeline()
-
-# Sidebar
-st.sidebar.header("Database Configuration")
+st.title("📦 Data Ingestion Pipeline ke MongoDB")
 
 try:
-    existing_dbs = init_pipeline.get_existing_databases()
+    pipeline_init = DataIngestionPipeline()
 except Exception as e:
-    st.sidebar.warning(f"Gagal terhubung ke MongoDB: {str(e)}")
-    existing_dbs = []
+    st.error(f"Gagal terhubung ke MongoDB: {e}")
+    st.stop()
 
-db_options = existing_dbs + ["+ Create New Database"]
-selected_db_option = st.sidebar.selectbox("Pilih Database", db_options, key="select_db")
+if "toast_msg" in st.session_state:
+    st.success(st.session_state["toast_msg"])
+    del st.session_state["toast_msg"]
 
-if selected_db_option == "+ Create New Database":
-    target_db = st.sidebar.text_input("Nama Database Baru", value="my_new_db", key="input_new_db")
+st.sidebar.header("⚙️ Target MongoDB")
+
+existing_dbs = pipeline_init.get_existing_databases()
+
+db_options = ["-- Buat Database Baru --"] + existing_dbs
+selected_db_option = st.sidebar.selectbox("Pilih Database:", db_options)
+
+if selected_db_option == "-- Buat Database Baru --":
+    target_db = st.sidebar.text_input("Nama Database Baru:")
 else:
     target_db = selected_db_option
 
-existing_collections = []
-if target_db and target_db != "+ Create New Database":
-    try:
-        existing_collections = init_pipeline.get_existing_collections(target_db)
-    except Exception:
-        existing_collections = []
+existing_cols = []
+if target_db and target_db in existing_dbs:
+    existing_cols = pipeline_init.get_existing_collections(target_db)
 
-coll_options = existing_collections + ["+ Create New Collection"]
-selected_coll_option = st.sidebar.selectbox("Pilih Collection", coll_options, key="select_coll")
+col_options = ["-- Buat Collection Baru --"] + existing_cols
+selected_col_option = st.sidebar.selectbox("Pilih Collection:", col_options)
 
-if selected_coll_option == "+ Create New Collection":
-    target_collection = st.sidebar.text_input("Nama Collection Baru", value="raw_imports", key="input_new_coll")
+if selected_col_option == "-- Buat Collection Baru --":
+    target_col = st.sidebar.text_input("Nama Collection Baru:")
 else:
-    target_collection = selected_coll_option
+    target_col = selected_col_option
 
-if target_db in existing_dbs:
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("Danger Zone")
+st.sidebar.markdown("---")
+
+with st.sidebar.expander("🗑️ Hapus Database / Collection"):
+    if existing_dbs:
+        del_db = st.selectbox("Hapus Database:", ["-- Pilih --"] + existing_dbs)
+        if st.button("Hapus Database Ini", type="secondary"):
+            if del_db != "-- Pilih --":
+                if pipeline_init.drop_database(del_db):
+                    st.session_state["toast_msg"] = f"Database '{del_db}' berhasil dihapus!"
+                    st.rerun()
     
-    if selected_coll_option in existing_collections:
-        if st.sidebar.button(f"Hapus Collection '{target_collection}'", type="secondary"):
-            if init_pipeline.drop_collection(target_db, target_collection):
-                st.sidebar.success(f"Collection '{target_collection}' berhasil dihapus!")
-                st.rerun()
+    if target_db and existing_cols:
+        del_col = st.selectbox("Hapus Collection:", ["-- Pilih --"] + existing_cols)
+        if st.button("Hapus Collection Ini", type="secondary"):
+            if del_col != "-- Pilih --":
+                if pipeline_init.drop_collection(target_db, del_col):
+                    st.session_state["toast_msg"] = f"Collection '{del_col}' berhasil dihapus!"
+                    st.rerun()
 
-    if st.sidebar.button(f"Hapus Database '{target_db}'", type="secondary"):
-        if init_pipeline.drop_database(target_db):
-            st.sidebar.success(f"Database '{target_db}' berhasil dihapus!")
-            st.rerun()
-
-# Main Interface
-uploaded_file = st.file_uploader("Pilih file CSV atau XLSX", type=["csv", "xlsx"])
+st.subheader("1. Unggah Berkas Data")
+uploaded_file = st.file_uploader("Pilih file CSV atau Excel", type=['csv', 'xlsx', 'xls'])
 
 if uploaded_file is not None:
     try:
-        pipeline = DataIngestionPipeline(db_name=target_db, collection_name=target_collection)
+        df_raw = pipeline_init.extract(uploaded_file)
         
-        df_raw = pipeline.extract(uploaded_file)
-        st.success(f"File **{uploaded_file.name}** berhasil dibaca ({len(df_raw)} baris, {len(df_raw.columns)} kolom).")
-        
-        st.subheader("1. Preview Data Awal")
-        col1, col2 = st.columns(2)
+        with st.expander("Preview Data Asli (Sebelum Transformasi)", expanded=True):
+            st.dataframe(df_raw.head(10))
+            st.caption(f"Total baris: {len(df_raw)} | Total kolom: {len(df_raw.columns)}")
+
+        st.subheader("2. Pengaturan Transformasi")
+        col1, col2, col3 = st.columns(3)
         with col1:
-            st.write("Sampel Data Mentah:")
-            st.dataframe(df_raw.head())
-        
+            drop_dup = st.checkbox("Hapus Duplikat", value=True)
         with col2:
-            st.write("Info Kolom & Tipe Data:")
-            info_df = pd.DataFrame({
-                'Column': df_raw.columns,
-                'Data Type': df_raw.dtypes.astype(str),
-                'Null Values': df_raw.isnull().sum().values
-            })
-            st.dataframe(info_df)
+            clean_head = st.checkbox("Bersihkan Header Kolom", value=True)
+        with col3:
+            fill_null = st.checkbox("Ubah NaN menjadi Null (None)", value=True)
 
-        st.subheader("2. Opsi Data Cleaning")
-        col_c1, col_c2, col_c3 = st.columns(3)
-        with col_c1:
-            opt_drop_dup = st.checkbox("Hapus Baris Duplikat", value=True)
-        with col_c2:
-            opt_clean_headers = st.checkbox("Format Header (snake_case)", value=True)
-        with col_c3:
-            opt_fill_na = st.checkbox("Konversi NaN ke null", value=True)
-
-        records, clean_rows_count = pipeline.transform(
-            df_raw, 
-            drop_duplicates=opt_drop_dup, 
-            clean_headers=opt_clean_headers, 
-            fill_na=opt_fill_na
+        records, cleaned_count = pipeline_init.transform(
+            df_raw.copy(), 
+            drop_duplicates=drop_dup, 
+            clean_headers=clean_head, 
+            fill_na=fill_null
         )
 
-        st.subheader("3. Preview Data Bersih")
-        st.info(f"Jumlah baris setelah cleaning: **{clean_rows_count}** baris.")
-        
-        with st.expander("Lihat Sampel Payload JSON (2 Record Pertama)"):
-            st.json(records[:2])
+        with st.expander("Preview Data Hasil Transformasi"):
+            st.dataframe(pd.DataFrame(records).head(10))
+            st.caption(f"Total baris setelah difilter: {cleaned_count}")
 
-        st.subheader("4. Simpan ke MongoDB")
-        st.warning(f"Target Penyimpanan -> Database: **{target_db}** | Collection: **{target_collection}**")
+        st.subheader("3. Ingest ke MongoDB")
         
-        if st.button("Push Data ke MongoDB", type="primary"):
-            with st.spinner("Mengirim data..."):
-                inserted_count = pipeline.load(records)
-                st.success(f"Berhasil menyimpan {inserted_count} dokumen ke database '{target_db}', collection '{target_collection}'!")
-                st.rerun()
-                
+        if not target_db or not target_col:
+            st.warning("Silakan tentukan Nama Database dan Collection terlebih dahulu di sidebar.")
+        else:
+            if st.button("🚀 Push Data ke MongoDB", type="primary"):
+                with st.spinner("Mengunggah data ke MongoDB..."):
+                    pipeline_load = DataIngestionPipeline(db_name=target_db, collection_name=target_col)
+                    inserted_count = pipeline_load.load(records)
+                    
+                    st.session_state["toast_msg"] = f"✅ Success! Berhasil memasukkan {inserted_count} dokumen ke Database '{target_db}' -> Collection '{target_col}'."
+                    st.rerun()
+
     except Exception as e:
-        st.error(f"Terjadi kesalahan: {str(e)}")
-else:
-    st.info("Silakan unggah file CSV atau Excel terlebih dahulu.")
+        st.error(f"Terjadi kesalahan saat memproses file: {e}")
